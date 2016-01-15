@@ -1,13 +1,26 @@
+from __future__ import print_function
 import sys
 from collections import Counter, namedtuple, OrderedDict
 from operator import itemgetter, mul, attrgetter
+import six
 import colorsys
 import webcolors
-from urllib2 import urlopen
+
+try:
+    from urllib2 import urlopen
+except ImportError:
+    from urllib.request import urlopen
+
 from PIL import Image as Im
 from PIL import ImageChops, ImageDraw
 from colormath.color_objects import RGBColor
-import cStringIO
+try:
+    from cStringIO import StringIO
+except ImportError:
+    try:
+        from io import BytesIO as StringIO
+    except ImportError:
+        from StringIO import StringIO
 import json
 import random
 from math import sqrt
@@ -17,7 +30,41 @@ Palette = namedtuple('Palette', 'colors bgcolor')
 Point = namedtuple('Point', ('coords', 'n', 'ct'))
 Cluster = namedtuple('Cluster', ('points', 'center', 'n'))
 
-convert3To21 = {"indigo": "purple", "gold": "orange", "firebrick": "red", "indianred": "red", "yellow": "yellow", "darkolivegreen": "green", "darkseagreen": "green", "mediumvioletred": "pink", "mediumorchid": "purple", "chartreuse": "green", "mediumslateblue": "purple", "black": "black", "springgreen": "green", "orange": "orange", "lightsalmon": "red", "brown": "brown", "turquoise": "teal", "olivedrab": "green", "cyan": "cyan", "silver": "gray", "skyblue": "blue", "darkturquoise": "teal", "goldenrod": "brown", "darkgreen": "green", "darkviolet": "purple", "darkgray": "gray", "lightpink": "pink", "teal": "teal", "darkmagenta": "purple", "lightgoldenrodyellow": "yellow", "lavender": "purple", "yellowgreen": "green", "thistle": "purple", "violet": "purple", "navy": "blue", "dimgrey": "gray", "orchid": "purple", "blue": "blue", "ghostwhite": "white", "honeydew": "white", "cornflowerblue": "blue", "darkblue": "blue", "darkkhaki": "yellow", "mediumpurple": "purple", "cornsilk": "brown", "red": "red", "bisque": "brown", "slategray": "gray", "darkcyan": "teal", "khaki": "yellow", "wheat": "brown", "deepskyblue": "blue", "darkred": "red", "steelblue": "blue", "aliceblue": "white", "lightslategrey": "gray", "gainsboro": "gray", "mediumturquoise": "teal", "floralwhite": "white", "coral": "orange", "aqua": "cyan", "burlywood": "brown", "darksalmon": "red", "beige": "white", "azure": "white", "lightsteelblue": "blue", "oldlace": "white", "greenyellow": "green", "fuchsia": "purple", "lightseagreen": "teal", "mistyrose": "white", "sienna": "brown", "lightcoral": "red", "orangered": "orange", "navajowhite": "brown", "lime": "green", "palegreen": "green", "lightcyan": "cyan", "seashell": "white", "mediumspringgreen": "green", "royalblue": "blue", "papayawhip": "yellow", "blanchedalmond": "brown", "peru": "brown", "aquamarine": "cyan", "white": "white", "darkslategray": "gray", "lightgray": "gray", "ivory": "white", "dodgerblue": "blue", "lawngreen": "green", "chocolate": "brown", "crimson": "red", "forestgreen": "green", "slateblue": "purple", "olive": "green", "mintcream": "white", "antiquewhite": "white", "hotpink": "pink", "moccasin": "yellow", "limegreen": "green", "saddlebrown": "brown", "grey": "gray", "darkslateblue": "purple", "lightskyblue": "blue", "deeppink": "pink", "plum": "purple", "darkgoldenrod": "brown", "maroon": "maroon", "sandybrown": "brown", "tan": "brown", "magenta": "purple", "rosybrown": "brown", "pink": "pink", "lightblue": "blue", "palevioletred": "pink", "mediumseagreen": "green", "linen": "white", "darkorange": "orange", "powderblue": "blue", "seagreen": "green", "snow": "white", "mediumblue": "blue", "midnightblue": "blue", "paleturquoise": "cyan", "palegoldenrod": "yellow", "whitesmoke": "white", "darkorchid": "purple", "salmon": "red", "lemonchiffon": "yellow", "lightgreen": "green", "tomato": "orange", "cadetblue": "teal", "lightyellow": "yellow", "lavenderblush": "white", "purple": "purple", "mediumaquamarine": "cyan", "green": "green", "blueviolet": "purple", "peachpuff": "yellow"}
+convert3To21 = {"indigo": "purple", "gold": "orange", "firebrick": "red", "indianred": "red", "yellow": "yellow",
+                "darkolivegreen": "green", "darkseagreen": "green", "mediumvioletred": "pink",
+                "mediumorchid": "purple", "chartreuse": "green", "mediumslateblue": "purple", "black": "black",
+                "springgreen": "green", "orange": "orange", "lightsalmon": "red", "brown": "brown",
+                "turquoise": "teal", "olivedrab": "green", "cyan": "cyan", "silver": "gray", "skyblue": "blue",
+                "darkturquoise": "teal", "goldenrod": "brown", "darkgreen": "green", "darkviolet": "purple",
+                "darkgray": "gray", "lightpink": "pink", "teal": "teal", "darkmagenta": "purple",
+                "lightgoldenrodyellow": "yellow", "lavender": "purple", "yellowgreen": "green",
+                "thistle": "purple", "violet": "purple", "navy": "blue", "dimgrey": "gray", "orchid": "purple",
+                "blue": "blue", "ghostwhite": "white", "honeydew": "white", "cornflowerblue": "blue",
+                "darkblue": "blue", "darkkhaki": "yellow", "mediumpurple": "purple", "cornsilk": "brown",
+                "red": "red", "bisque": "brown", "slategray": "gray", "darkcyan": "teal", "khaki": "yellow",
+                "wheat": "brown", "deepskyblue": "blue", "darkred": "red", "steelblue": "blue",
+                "aliceblue": "white", "lightslategrey": "gray", "gainsboro": "gray", "mediumturquoise": "teal",
+                "floralwhite": "white", "coral": "orange", "aqua": "cyan", "burlywood": "brown",
+                "darksalmon": "red", "beige": "white", "azure": "white", "lightsteelblue": "blue",
+                "oldlace": "white", "greenyellow": "green", "fuchsia": "purple", "lightseagreen": "teal",
+                "mistyrose": "white", "sienna": "brown", "lightcoral": "red", "orangered": "orange",
+                "navajowhite": "brown", "lime": "green", "palegreen": "green", "lightcyan": "cyan",
+                "seashell": "white", "mediumspringgreen": "green", "royalblue": "blue", "papayawhip": "yellow",
+                "blanchedalmond": "brown", "peru": "brown", "aquamarine": "cyan", "white": "white",
+                "darkslategray": "gray", "lightgray": "gray", "ivory": "white", "dodgerblue": "blue",
+                "lawngreen": "green", "chocolate": "brown", "crimson": "red", "forestgreen": "green",
+                "slateblue": "purple", "olive": "green", "mintcream": "white", "antiquewhite": "white",
+                "hotpink": "pink", "moccasin": "yellow", "limegreen": "green", "saddlebrown": "brown",
+                "grey": "gray", "darkslateblue": "purple", "lightskyblue": "blue", "deeppink": "pink",
+                "plum": "purple", "darkgoldenrod": "brown", "maroon": "maroon", "sandybrown": "brown",
+                "tan": "brown", "magenta": "purple", "rosybrown": "brown", "pink": "pink", "lightblue": "blue",
+                "palevioletred": "pink", "mediumseagreen": "green", "linen": "white", "darkorange": "orange",
+                "powderblue": "blue", "seagreen": "green", "snow": "white", "mediumblue": "blue",
+                "midnightblue": "blue", "paleturquoise": "cyan", "palegoldenrod": "yellow", "whitesmoke": "white",
+                "darkorchid": "purple", "salmon": "red", "lemonchiffon": "yellow", "lightgreen": "green",
+                "tomato": "orange", "cadetblue": "teal", "lightyellow": "yellow", "lavenderblush": "white",
+                "purple": "purple", "mediumaquamarine": "cyan", "green": "green", "blueviolet": "purple",
+                "peachpuff": "yellow"}
 
 def prepare_output(colors, format):
     ''' Prepares the output determined by what format is given. If no format, then list of hex codes is returned '''
@@ -32,16 +79,18 @@ def prepare_output(colors, format):
     elif format == 'css21':
         output = {}
         for color in colors:
-            output[color] = convert3To21[get_color_name(hex_to_rgb(color))]
+            color_name = get_color_name(hex_to_rgb(color))
+            output[color] = convert3To21.get(color_name, color_name)
         return output
     elif format == 'full':
         output = {}
         for color in colors:
             name = get_color_name(hex_to_rgb(color))
-            if convert3To21[name] not in output.keys():
-                output[convert3To21[name]] = [{name : color}]
+            cname = convert3To21.get(name, name)
+            if cname not in output.keys():
+                output[cname] = [{cname : color}]
             else:
-                output[convert3To21[name]].append({name : color})
+                output[cname].append({cname : color})
         return output
     elif format == 'fullest':
         output = {}
@@ -54,14 +103,17 @@ def prepare_output(colors, format):
             output['css3'][color] = get_color_name(hex_to_rgb(color))
 
         for color in colors:
+            color_name = get_color_name(hex_to_rgb(color))
+            output['css21'] = convert3To21.get(color_name, color_name)
             output['css21'][color] = convert3To21[get_color_name(hex_to_rgb(color))]
 
         for color in colors:
             name = get_color_name(hex_to_rgb(color))
-            if convert3To21[name] not in output['tree'].keys():
-                output['tree'][convert3To21[name]] = [{name : color}]
+            cname = convert3To21.get(name, name)
+            if cname not in output['tree'].keys():
+                output['tree'][cname] = [{cname : color}]
             else:
-                output['tree'][convert3To21[name]].append({name : color})
+                output['tree'][cname].append({cname : color})
         return output
 
 def closest_color(requested_color):
@@ -134,7 +186,7 @@ def extract_colors(imageData, n, format, output):
     # aggregate colors
     to_canonical = {WHITE: WHITE, BLACK: BLACK}
     aggregated = Counter({WHITE: 0, BLACK: 0})
-    sorted_cols = sorted(dist.iteritems(), key=itemgetter(1), reverse=True)
+    sorted_cols = sorted(six.iteritems(dist), key=itemgetter(1), reverse=True)
     for c, n in sorted_cols:
         if c in aggregated:
             # exact match!
@@ -152,7 +204,7 @@ def extract_colors(imageData, n, format, output):
 
     # order by prominence
     colors = sorted((Color(c, n / float(n_pixels)) \
-                for (c, n) in aggregated.iteritems()),
+                for (c, n) in six.iteritems(aggregated)),
             key=attrgetter('prominence'),
             reverse=True)
 
@@ -322,7 +374,7 @@ def palette(**kwargs):
     # If the image is given as a URL
     if url:
         imageFile = urlopen(url)
-        imageData = cStringIO.StringIO(imageFile.read())
+        imageData = StringIO(imageFile.read())
         if not mode:
             return extract_colors(imageData, n, format, output)
         elif mode.lower() == 'kmeans' or mode.lower() == 'k-means':
@@ -335,5 +387,5 @@ def palette(**kwargs):
             return colorz(path, n, format, output)
     # Unknown format of image
     else:
-        print "Unable to get image. Exiting."
+        print("Unable to get image. Exiting.")
         sys.exit(0)
